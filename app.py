@@ -2,17 +2,21 @@ import boto3
 import pymysql
 import pandas as pd
 from io import StringIO
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
 
 # Set your database connection parameters
-db_host = os.environ.get('db_host')
-db_user = os.environ.get('db_user')
-db_password = os.environ.get('db_password')
-db_name = os.environ.get('db_name')
+db_host = os.getenv('db_host')
+db_user = os.getenv('db_user')
+db_password = os.getenv('db_password')
+db_name = os.getenv('db_name')
 
-aws_access_key_id =  os.environ.get('aws_access_key_id')
-aws_secret_access_key =  os.environ.get('aws_secret_access_key')
-s3_bucket =  os.environ.get('s3_bucket')
-s3_key =  os.environ.get('s3_key')
+aws_access_key_id =  os.getenv('aws_access_key_id')
+aws_secret_access_key =  os.getenv('aws_secret_access_key')
+s3_bucket =  os.getenv('s3_bucket')
+s3_key =  os.getenv('s3_key')
 
 companies = [
     'winguhr_10_supaflo',
