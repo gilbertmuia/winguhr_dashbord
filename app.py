@@ -64,44 +64,53 @@ for company in companies:
         d.name                                                        as department_name,
         ds.name                                                       as designation,
         ci.salary,
-        COALESCE((select SUM(lad.value)
-                    from leave_applications la
-                            inner join leave_application_days lad on la.id = lad.leave_application_id
+        lt.name as leave_type,
+            COALESCE((select SUM(lad.value)
+                        from leave_applications la
+                                inner join leave_application_days lad on la.id = lad.leave_application_id
+                                inner join leave_types lt on la.leave_type_id = lt.id
+                        where la.deleted_at is null
+                        and lad.deleted_at is null
+                        and la.status != 'Rejected'
+                        and lt.id = lb.leave_types_id
+                        and la.employee_id = e.id
+                        group by la.leave_type_id), 0) as days_taken,
+
+            COALESCE((
+                select sum(lbs.current_balance + lbs.balance_brought_forward)
+                from leave_balances lbs
+                            inner join leave_types lt on lbs.leave_types_id = lt.id
+                where lbs.deleted_at is null
+                    and lt.id = lbs.leave_types_id
+                    and lbs.employee_id = e.id
+                    and lbs.id = lb.id
+            ),0) as opening_balance,
+            COALESCE((
+                select sum(la.value)
+                from leave_assignments la
                             inner join leave_types lt on la.leave_type_id = lt.id
-                            inner join leave_calenders lc on la.leave_calender_id = lc.id
-                    where la.deleted_at is null
-                    and lad.deleted_at is null
-                    and la.status != 'Rejected'
-                    and lt.is_earned = 1
+                where la.deleted_at is null
+                    and lt.id = lb.leave_types_id
                     and la.employee_id = e.id
-                    and lc.status = 1
-                    group by la.leave_type_id), 0)                      as days_taken,
-        (select coalesce(sum(lb.current_balance + lb.balance_brought_forward), 0)
+                ),0) as accruals,
+            COALESCE((SELECT opening_balance + accruals - days_taken), 0) AS leave_balance,
+            COALESCE(
+            (
+                SELECT IF(lt.is_earned = 1,leave_balance * ci.salary/26,0)
+            ), 0) 
+            AS leave_liability
         from leave_balances lb
-                    inner join leave_types lt on lb.leave_types_id = lt.id
-                    inner join leave_calenders lc on lb.leave_calender_id = lc.id
-        where lb.deleted_at is null
-            and lt.is_earned = 1
-            and lc.status = 1
-            and lb.employee_id = e.id)                                 as opening_balance,
-        (select sum(la.value)
-        from leave_assignments la
-                    inner join leave_types lt on la.leave_type_id = lt.id
-                    inner join leave_calenders lc on la.leave_calender_id = lc.id
-        where la.deleted_at is null
-            and lt.is_earned = 1
-            and lc.status = 1
-            and la.employee_id = e.id)                                 as accruals,
-        COALESCE((SELECT opening_balance + accruals - days_taken), 0) AS leave_balance,
-        COALESCE((SELECT leave_balance * ci.salary/26), 0)               AS leave_liability
-    from employees e
-            left join contract_issuances ci on ci.employee_id = e.id
-            inner join departments d on e.department_id = d.id
-            inner join designations ds on ds.id = e.designation_id
-    where e.deleted_at is null
-    and ci.deleted_at is null
-    and ci.is_terminated = 0
-    and (ci.contract_end_date is null or ci.contract_end_date > now());
+                inner join employees e on e.id = lb.employee_id
+                inner join contract_issuances ci on ci.employee_id = e.id
+                inner join departments d on e.department_id = d.id
+                inner join designations ds on ds.id = e.designation_id
+                inner join leave_types lt on lt.id = lb.leave_types_id
+                inner join leave_calenders lc on lc.id = lb.leave_calender_id
+        where e.deleted_at is null
+        and ci.deleted_at is null
+        and ci.is_terminated = 0
+        and (ci.contract_end_date is null or ci.contract_end_date > now())
+        and lc.status = 1
     """
     
     # print(sql_query)
